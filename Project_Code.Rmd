@@ -1,0 +1,1057 @@
+---
+title: "IDS Project"
+output:
+  html_document: default
+  pdf_document: default
+date: "2024-03-11"
+--- 
+```{r}
+# STATICHOUSE - data download
+# Install and load the necessary packages
+library(tidyverse)
+library(arrow)
+library(ggplot2)
+library(dplyr)
+
+# Read the Parquet file into R
+data <- 
+  read_parquet("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/static_house_info.parquet")
+
+# Check the first few rows of the dataset
+head(data)
+```
+
+```{r}
+#ENERGY USAGE FILE
+# Read the Parquet file into R
+energy_data <- 
+  read_parquet("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/2023-houseData/102063.parquet")
+
+#finding summary of energy_data:
+summary(energy_data)
+```
+
+
+```{r}
+# Subset the data frame
+subset_data <- select(data, 
+                      in.income_recs_2020, 
+                      bldg_id, in.county,
+                      in.building_america_climate_zone,
+                      in.sqft,
+                      in.pv_system_size,
+                      in.bedrooms,
+                      in.occupants,
+                      in.insulation_ceiling)
+head(subset_data)
+```
+
+
+```{r}
+# Create the bar chart
+ggplot(subset_data, aes(x = in.county, fill = in.income_recs_2020)) +
+  geom_bar(position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 1.0, hjust = 2)) + # Adjusting x-axis labels for better readability
+  labs(title = "Economic Diversity by County",
+       x = "County",
+       y = "Count",
+       fill = "Income Range")
+```
+
+
+```{r}
+# Calculate the diversity score (e.g., standard deviation) for each county
+diversity_scores <- subset_data %>%
+  group_by(in.county) %>%
+  summarise(diversity_score = sd(table(in.income_recs_2020))) %>%
+  arrange(desc(diversity_score)) # arrange in descending order to get the highest diversity score at the top
+
+# Extracting the top 3 most diverse counties
+top_3_diverse_counties <- head(diversity_scores, 3)
+
+# Viewing the top 3 diverse counties
+print(top_3_diverse_counties)
+```
+
+```{r}
+# Filtering the original dataframe to include only those rows with the top 3 county codes
+# and ensuring all desired columns are maintained
+top_counties_data <- subset_data %>%
+  filter(in.county %in% top_3_diverse_counties$in.county) %>%
+  select(in.income_recs_2020, 
+         bldg_id, in.county, 
+         in.building_america_climate_zone,
+         in.sqft,
+         in.pv_system_size,
+         in.bedrooms,
+         in.occupants,
+         in.insulation_ceiling)
+
+# View the data for the top 3 diverse counties, including the climate zone
+print(top_counties_data)
+```
+
+
+```{r}
+# Filtering the already filtered dataframe for 'hot_humid' climate zone
+top_counties_hot_humid_data <- top_counties_data %>%
+  filter(in.building_america_climate_zone == "Hot-Humid")
+# View the data for the top 3 diverse counties with 'hot_humid' climate zone
+print(top_counties_hot_humid_data)
+top_counties_hot_humid_data %>% filter(in.pv_system_size != "None")
+```
+
+```{r}
+# Sorting by a single column (for example, by 'in.sqft')
+top_counties_hot_humid_sorted <- top_counties_hot_humid_data[order(top_counties_hot_humid_data$in.sqft), ]
+```
+
+
+```{r}
+# Assuming top_counties_hot_humid_sorted is your original dataframe
+
+# Step 1: Identify the unique income levels
+unique_income_levels <- unique(top_counties_hot_humid_sorted$in.income_recs_2020)
+
+# Step 2: Create a dataframe for each unique income level
+# Initialize a list to store the dataframes
+list_of_income_df <- list()
+
+for (income_level in unique_income_levels) {
+  # Filter for each income level and create a new dataframe
+  df <- subset(top_counties_hot_humid_sorted, in.income_recs_2020 == income_level)
+  
+  # Add the new dataframe to the list with the income level as the name
+  list_of_income_df[[income_level]] <- df
+}
+
+# Now list_of_income_df contains a dataframe for each unique income level
+list_of_income_df
+```
+
+```{r}
+# Assign each dataframe to a new dataframe with a specific name
+income_100k_149k <- list_of_income_df[["100000-149999"]]
+income_150k_plus <- list_of_income_df[["150000+"]]
+income_20k_39k <- list_of_income_df[["20000-39999"]]
+income_40k_59k <- list_of_income_df[["40000-59999"]]
+income_60k_99k <- list_of_income_df[["60000-99999"]]
+income_less_20k <- list_of_income_df[["<20000"]]
+```
+
+```{r}
+income_100k_149k <- subset(income_100k_149k, in.sqft == 1690)
+income_150k_plus <- subset(income_150k_plus, in.sqft == 1690)
+income_20k_39k <- subset(income_20k_39k, in.sqft == 1690)
+income_40k_59k <- subset(income_40k_59k, in.sqft == 1690)
+income_60k_99k <- subset(income_60k_99k, in.sqft == 1690)
+income_less_20k <- subset(income_less_20k, in.sqft == 1690)
+```
+
+```{r}
+top15_income_100k_149k <- head(income_100k_149k, 11)
+top15_150k_plus <- income_150k_plus
+top15_income_20k_39k <- head(income_20k_39k, 11)
+top15_income_40k_59k <- head(income_40k_59k, 11)
+top15_income_60k_99k <- head(income_60k_99k, 11)
+top15_income_less_20k <- head(income_less_20k, 11)
+```
+
+
+```{r}
+# Merging all the 11 building data of each income level
+merged_static_house <- rbind(top15_income_less_20k, top15_income_20k_39k,top15_income_40k_59k,top15_income_60k_99k,top15_income_100k_149k,top15_150k_plus)
+# Print
+merged_static_house
+```
+
+
+
+```{r}
+# List of all buildings that will be used
+bidlist <- c(unique(merged_static_house$bldg_id))
+
+# Merging all the house data of each building that will be used
+datasets <- list()
+for(i in bidlist) {
+  url <- paste0("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/2023-houseData/", i, ".parquet")
+  dataset <- read_parquet(url)
+  dataset$bid <- i
+  datasets[[length(datasets) + 1]] <- dataset
+}
+merged_dataset <- bind_rows(datasets)
+```
+
+
+```{r}
+heating_data <- merged_dataset[, c(
+  "out.electricity.heating_fans_pumps.energy_consumption",
+  "out.electricity.heating_hp_bkup.energy_consumption",
+  "out.electricity.heating.energy_consumption",
+  "out.fuel_oil.heating.energy_consumption",
+  "out.natural_gas.heating.energy_consumption",
+  "out.propane.heating.energy_consumption",
+  "out.electricity.hot_water.energy_consumption",
+  "time",
+  "bid"
+)]
+
+cooling_data<- merged_dataset[, c(
+  "out.electricity.cooling_fans_pumps.energy_consumption",
+  "out.electricity.cooling.energy_consumption",
+  "out.electricity.freezer.energy_consumption",
+  "out.electricity.refrigerator.energy_consumption",
+  "time",
+  "bid"
+)]
+```
+
+
+```{r}
+weather_df <- read_csv(
+  "https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/weather/2023-weather-data/G4500190.csv", show_col_types = FALSE)
+
+weather1_df <- read_csv(
+  "https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/weather/2023-weather-data/G4500510.csv", show_col_types = FALSE)
+
+# Combine the two dataframes by rows
+combined_weather_df <- rbind(weather_df, weather1_df)
+
+# View the combined dataframe
+head(combined_weather_df)
+```
+
+
+```{r}
+heating_weather_data <- 
+  merge(combined_weather_df, heating_data, by.x = "date_time", by.y = "time", all.x = TRUE)
+head(heating_weather_data)
+```
+
+```{r}
+cooling_weather_data <- 
+  merge(combined_weather_df, cooling_data, by.x = "date_time", by.y = "time", all.x = TRUE)
+head(cooling_weather_data)
+```
+
+
+```{r}
+# Merge the data frames
+# Make sure that 'bid' and 'bldg_id' are of the same type (e.g., both are numeric or character)
+cooling_weather_data$bid <- as.character(cooling_weather_data$bid)
+merged_static_house$bldg_id <- as.character(merged_static_house$bldg_id)
+
+# Merge the datasets
+combined_cooling_house_data <- 
+  merge(cooling_weather_data, merged_static_house, by.x = "bid", by.y = "bldg_id", all = TRUE)
+
+head(combined_cooling_house_data)
+```
+
+
+```{r}
+# Merge the data frames
+# Make sure that 'bid' and 'bldg_id' are of the same type (e.g., both are numeric or character)
+heating_weather_data$bid <- as.character(heating_weather_data$bid)
+merged_static_house$bldg_id <- as.character(merged_static_house$bldg_id)
+
+# Merge the datasets
+combined_heating_house_data <- 
+  merge(heating_weather_data, merged_static_house, by.x = "bid", by.y = "bldg_id", all = TRUE)
+
+head(combined_heating_house_data)
+```
+
+
+```{r}
+# Sorting the heating data based on building id and date_time
+sorted_combined_heating_house_data <- combined_heating_house_data %>% 
+  arrange(bid,date_time)
+
+sorted_combined_heating_house_data
+```
+
+```{r}
+# Sorting the cooling data based on building id and date_time
+sorted_combined_cooling_house_data <- combined_cooling_house_data %>% 
+  arrange(bid,date_time)
+
+sorted_combined_cooling_house_data
+```
+
+
+```{r}
+combined_heating_house_data <- combined_heating_house_data %>%
+  mutate(total_energy_consumption = rowSums(select(., starts_with("out.electricity.heating_hp_bkup.energy_consumption"),
+                                                      starts_with("out.electricity.heating.energy_consumption"),
+                                                      starts_with("out.fuel_oil.heating.energy_consumption"),
+                                                      starts_with("out.natural_gas.heating.energy_consumption"),
+                                                      starts_with("out.propane.heating.energy_consumption"),
+                                                      "out.electricity.hot_water.energy_consumption",
+                                                      "out.electricity.heating_fans_pumps.energy_consumption"),
+                                                na.rm = TRUE))
+
+head(combined_heating_house_data)
+```
+
+```{r}
+
+combined_cooling_house_data <- combined_cooling_house_data %>%
+  mutate(total_energy_consumption = rowSums(select(., "out.electricity.cooling.energy_consumption",
+                                                      "out.electricity.freezer.energy_consumption",
+                                                      "out.electricity.refrigerator.energy_consumption",
+                                                      "out.electricity.cooling_fans_pumps.energy_consumption"),
+                                            na.rm = TRUE))
+
+head(combined_cooling_house_data)
+```
+
+
+```{r}
+unique(combined_cooling_house_data$in.insulation_ceiling)
+```
+
+```{r}
+combined_cooling_house_data$Temperature <- combined_cooling_house_data$`Dry Bulb Temperature [°C]`
+combined_cooling_house_data$RelativeHumidity <- combined_cooling_house_data$`Relative Humidity [%]`
+combined_cooling_house_data$WindSpeed <- combined_cooling_house_data$`Wind Speed [m/s]`
+combined_cooling_house_data$WindDirection <- combined_cooling_house_data$`Wind Direction [Deg]`
+combined_cooling_house_data$GlobalHorizontalRadiation <- 
+  combined_cooling_house_data$`Global Horizontal Radiation [W/m2]`
+combined_cooling_house_data$DirectNormalRadiation <- 
+  combined_cooling_house_data$`Direct Normal Radiation [W/m2]`
+combined_cooling_house_data$DiffuseHorizontalRadiation <- 
+  combined_cooling_house_data$`Diffuse Horizontal Radiation [W/m2]`
+
+cooling_model_data <- combined_cooling_house_data[, c(
+    "total_energy_consumption",
+    "Temperature",
+    "RelativeHumidity",
+    "WindSpeed",
+    "WindDirection",
+    "GlobalHorizontalRadiation",
+    "DirectNormalRadiation",
+    "DiffuseHorizontalRadiation",
+    "out.electricity.cooling_fans_pumps.energy_consumption",
+    "out.electricity.cooling.energy_consumption",
+    "out.electricity.freezer.energy_consumption",
+    "out.electricity.refrigerator.energy_consumption",
+    "in.income_recs_2020",
+    "in.pv_system_size",
+    "in.bedrooms",
+    "in.occupants",
+    "in.insulation_ceiling"
+)]
+head(cooling_model_data)
+
+combined_heating_house_data$Temperature <- combined_heating_house_data$`Dry Bulb Temperature [°C]`
+combined_heating_house_data$RelativeHumidity <- combined_heating_house_data$`Relative Humidity [%]`
+combined_heating_house_data$WindSpeed <- combined_heating_house_data$`Wind Speed [m/s]`
+combined_heating_house_data$WindDirection <- combined_heating_house_data$`Wind Direction [Deg]`
+combined_heating_house_data$GlobalHorizontalRadiation <- 
+  combined_heating_house_data$`Global Horizontal Radiation [W/m2]`
+combined_heating_house_data$DirectNormalRadiation <- 
+  combined_heating_house_data$`Direct Normal Radiation [W/m2]`
+combined_heating_house_data$DiffuseHorizontalRadiation <- 
+  combined_heating_house_data$`Diffuse Horizontal Radiation [W/m2]`
+
+heating_model_data <- combined_heating_house_data[, c(
+  "total_energy_consumption",
+  "Temperature",
+  "RelativeHumidity",
+  "WindSpeed",
+  "WindDirection",
+  "GlobalHorizontalRadiation",
+  "DirectNormalRadiation",
+  "DiffuseHorizontalRadiation",
+  "out.electricity.heating_fans_pumps.energy_consumption",
+  "out.electricity.heating_hp_bkup.energy_consumption",
+  "out.electricity.heating.energy_consumption",
+  "out.fuel_oil.heating.energy_consumption",
+  "out.natural_gas.heating.energy_consumption",
+  "out.propane.heating.energy_consumption",
+  "out.electricity.hot_water.energy_consumption",
+  "in.income_recs_2020",
+  "in.pv_system_size",
+  "in.bedrooms",
+  "in.occupants",
+  "in.insulation_ceiling"
+)]
+head(heating_model_data)
+```
+
+
+```{r}
+#write_parquet(cooling_model_data, "C:/Users/arshc/OneDrive/Desktop/IDS/cooling_model_data.parquet")
+#write_parquet(heating_model_data, "C:/Users/arshc/OneDrive/Desktop/IDS/heating_model_data.parquet")
+```
+
+
+```{r}
+library(caret)
+# Heating Data
+train_heating <- 
+  createDataPartition(y=heating_model_data$total_energy_consumption,
+                      p=.80, list = FALSE)
+trainSet_heat <- heating_model_data[train_heating,]
+testSet_heat <- heating_model_data[-train_heating,]
+
+# Cooling Data
+train_cooling <- 
+  createDataPartition(y=cooling_model_data$total_energy_consumption,
+                      p=.80, list = FALSE)
+trainSet_cool <- cooling_model_data[train_cooling,]
+testSet_cool <- cooling_model_data[-train_cooling,]
+head(trainSet_cool)
+head(testSet_cool)
+```
+
+
+```{r}
+# Decision Tree
+# Using rpart
+library(rpart)
+# Heating Data Model - rpart
+# It has a accuracy of 92.4%
+heatdt <- rpart(total_energy_consumption~. , data = trainSet_heat)
+predheatdt <- predict(heatdt, testSet_heat)
+
+rmse1 <- sqrt(mean((predheatdt - testSet_heat$total_energy_consumption)^2, na.rm = TRUE))
+print(paste("RMSE for Heating Data: ", rmse1))
+
+# Accuracy of heating data model
+ss_res1 <- sum((predheatdt - testSet_heat$total_energy_consumption)^2)
+ss_tot1 <- sum((testSet_heat$total_energy_consumption - mean(testSet_heat$total_energy_consumption))^2)
+r_squared1 <- 1 - (ss_res1 / ss_tot1)
+r_squared1
+
+# Cooling Data Model - rpart
+# It has a accuracy of 95.44%
+cooldt <- rpart(total_energy_consumption~., data = trainSet_cool)
+predcooldt <- predict(cooldt, testSet_cool)
+
+rmse2 <- sqrt(mean((predcooldt - testSet_cool$total_energy_consumption)^2, na.rm = TRUE))
+print(paste("RMSE for Cooling Data: ", rmse2))
+
+# Accuracy of cooling data model
+ss_res2 <- sum((predcooldt - testSet_cool$total_energy_consumption)^2)
+ss_tot2 <- sum((testSet_cool$total_energy_consumption - mean(testSet_cool$total_energy_consumption))^2)
+r_squared2 <- 1 - (ss_res2 / ss_tot2)
+r_squared2
+```
+
+
+```{r}
+# Using tree
+library(tree)
+
+# Heating Data Model - tree
+# It has a accuracy of 92.45%
+heatdt2 <- tree(total_energy_consumption ~ ., data = trainSet_heat)
+predheatdt2 <- predict(heatdt2, testSet_heat)
+
+rmse3 <- sqrt(mean((predheatdt - testSet_heat$total_energy_consumption)^2, na.rm = TRUE))
+print(paste("RMSE for Heating Data: ", rmse3))
+
+ss_res3 <- sum((predheatdt2 - testSet_heat$total_energy_consumption)^2)
+ss_tot3 <- sum((testSet_heat$total_energy_consumption - mean(testSet_heat$total_energy_consumption))^2)
+r_squared3 <- 1 - (ss_res3 / ss_tot3)
+r_squared3
+
+# Cooling Data Model - tree
+# It has a accuracy of 95.43%
+cooldt2 <- tree(total_energy_consumption ~ ., data = trainSet_cool)
+predcooldt2 <- predict(cooldt2, testSet_cool)
+
+rmse4 <- sqrt(mean((predcooldt2 - testSet_cool$total_energy_consumption)^2, na.rm = TRUE))
+print(paste("RMSE for Cooling Data: ", rmse4))
+
+ss_res4 <- sum((predcooldt2 - testSet_cool$total_energy_consumption)^2)
+ss_tot4 <- sum((testSet_cool$total_energy_consumption - mean(testSet_cool$total_energy_consumption))^2)
+r_squared4 <- 1 - (ss_res4 / ss_tot4)
+r_squared4
+```
+
+```{r}
+heating_model_data1 <- combined_heating_house_data[, c(
+  "total_energy_consumption",
+  "Temperature",
+  "RelativeHumidity",
+  "WindSpeed",
+  "WindDirection",
+  "GlobalHorizontalRadiation",
+  "DirectNormalRadiation",
+  "DiffuseHorizontalRadiation",
+  "out.electricity.heating_fans_pumps.energy_consumption",
+  "out.electricity.heating.energy_consumption",
+  "out.electricity.hot_water.energy_consumption",
+  "in.income_recs_2020",
+  "in.bedrooms",
+  "in.occupants",
+  "in.insulation_ceiling"
+)]
+
+trainIndex <- createDataPartition(y = heating_model_data1$total_energy_consumption, p = .80, list = FALSE)
+trainSet <- heating_model_data1[trainIndex, ]
+testSet <- heating_model_data1[-trainIndex, ]
+
+# The model formula
+modelFormula <- total_energy_consumption ~ Temperature + RelativeHumidity + WindSpeed + WindDirection + GlobalHorizontalRadiation + DirectNormalRadiation + DiffuseHorizontalRadiation + out.electricity.heating_fans_pumps.energy_consumption + out.electricity.heating.energy_consumption + out.electricity.hot_water.energy_consumption + in.income_recs_2020 + in.bedrooms + in.occupants + in.insulation_ceiling
+
+# Fit Linear Regression Model
+lm_model <- lm(modelFormula, data = trainSet)
+
+# Make predictions on the test set
+predictions <- predict(lm_model, newdata = testSet)
+
+# Check for NA in predictions and actual values
+na_in_predictions <- is.na(predictions)
+na_in_actuals <- is.na(testSet$total_energy_consumption)
+
+# Filter out NAs if they exist
+if(any(na_in_predictions | na_in_actuals)) {
+  valid_indices <- !(na_in_predictions | na_in_actuals)
+  predictions <- predictions[valid_indices]
+  actuals <- testSet$total_energy_consumption[valid_indices]
+} else {
+  actuals <- testSet$total_energy_consumption
+}
+
+# Calculate RMSE for the model
+rmse <- sqrt(mean((predictions - actuals)^2, na.rm = TRUE))
+print(paste("RMSE for Heating House Data: ", rmse))
+
+# Optionally, calculate R-squared for the test set
+ss_res_h <- sum((predictions - actuals) ^ 2)
+ss_tot_h <- sum((actuals - mean(trainSet$total_energy_consumption)) ^ 2)
+r_squared <- 1 - (ss_res_h / ss_tot_h)
+print(paste("R-squared for Heating House Data: ", r_squared))
+
+# Cooling Data
+cooling_model_data1 <- combined_cooling_house_data[, c(
+    "total_energy_consumption",
+    "Temperature",
+    "RelativeHumidity",
+    "WindSpeed",
+    "WindDirection",
+    "GlobalHorizontalRadiation",
+    "DirectNormalRadiation",
+    "DiffuseHorizontalRadiation",
+    "out.electricity.cooling_fans_pumps.energy_consumption",
+    "out.electricity.cooling.energy_consumption",
+    "out.electricity.freezer.energy_consumption",
+    "in.income_recs_2020",
+    "in.bedrooms",
+    "in.occupants"
+)]
+
+library(caret)
+
+trainIndex <- createDataPartition(y = cooling_model_data1$total_energy_consumption, p = .80, list = FALSE)
+trainSet <- cooling_model_data1[trainIndex, ]
+testSet <- cooling_model_data1[-trainIndex, ]
+
+# Specify the model formula
+modelFormula <- total_energy_consumption ~ Temperature + RelativeHumidity + WindSpeed + WindDirection + GlobalHorizontalRadiation + DirectNormalRadiation + DiffuseHorizontalRadiation + out.electricity.cooling_fans_pumps.energy_consumption + out.electricity.cooling.energy_consumption + out.electricity.freezer.energy_consumption + in.income_recs_2020 + in.bedrooms + in.occupants
+
+# Fit Linear Regression Model
+lm_model <- lm(modelFormula, data = trainSet)
+
+# Summary of the model
+
+# Make predictions on the test set
+predictions <- predict(lm_model, newdata = testSet)
+
+# Handle potential NA values in predictions or actual values
+na_in_predictions <- is.na(predictions)
+na_in_actuals <- is.na(testSet$total_energy_consumption)
+
+if(any(na_in_predictions | na_in_actuals)) {
+  valid_indices <- !(na_in_predictions | na_in_actuals)
+  predictions <- predictions[valid_indices]
+  actuals <- testSet$total_energy_consumption[valid_indices]
+} else {
+  actuals <- testSet$total_energy_consumption
+}
+
+# Calculate RMSE for the model
+rmse <- sqrt(mean((predictions - actuals)^2, na.rm = TRUE))
+print(paste("RMSE for Cooling House Data: ", rmse))
+
+# Optionally, calculate R-squared for the test set
+ss_res_c <- sum((predictions - actuals) ^ 2)
+ss_tot_c <- sum((actuals - mean(trainSet$total_energy_consumption)) ^ 2)
+r_squared <- 1 - (ss_res_c / ss_tot_c)
+print(paste("R-squared for Cooling House Data: ", r_squared))
+```
+
+```{r}
+common_cols <- c("bid",
+                 "date_time",
+                 "Dry Bulb Temperature [°C]",
+                 "Relative Humidity [%]",
+                 "Wind Speed [m/s]",
+                 "Wind Direction [Deg]",
+                 "Global Horizontal Radiation [W/m2]",
+                 "Direct Normal Radiation [W/m2]",
+                 "Diffuse Horizontal Radiation [W/m2]",
+                 "in.income_recs_2020",
+                 "in.county",
+                 "in.building_america_climate_zone",
+                 "in.sqft",
+                 "in.pv_system_size",
+                 "in.bedrooms",
+                 "in.occupants",
+                 "in.insulation_ceiling",
+                 "total_energy_consumption",
+                 "Temperature",
+                 "RelativeHumidity",
+                 "WindSpeed",
+                 "WindDirection",
+                 "GlobalHorizontalRadiation",
+                 "DirectNormalRadiation",
+                 "DiffuseHorizontalRadiation")
+```
+
+```{r}
+# Combined dataset modeling
+combined_data <- merge(sorted_combined_cooling_house_data, sorted_combined_heating_house_data, by = common_cols)
+
+columns_to_sum <- c("out.electricity.cooling_fans_pumps.energy_consumption",
+                    "out.electricity.cooling.energy_consumption",
+                    "out.electricity.freezer.energy_consumption",
+                    "out.electricity.refrigerator.energy_consumption",
+                    "out.electricity.heating_fans_pumps.energy_consumption",
+                    "out.electricity.heating_hp_bkup.energy_consumption",
+                    "out.electricity.heating.energy_consumption",
+                    "out.fuel_oil.heating.energy_consumption",
+                    "out.natural_gas.heating.energy_consumption",
+                    "out.propane.heating.energy_consumption",
+                    "out.electricity.hot_water.energy_consumption")
+
+combined_data$TotalEnergy <- rowSums(combined_data[, columns_to_sum], na.rm = TRUE)
+
+model_data <- combined_data[,c(
+    "TotalEnergy",
+    "Temperature",
+    "RelativeHumidity",
+    "WindSpeed",
+    "WindDirection",
+    "GlobalHorizontalRadiation",
+    "DirectNormalRadiation",
+    "DiffuseHorizontalRadiation",
+    "out.electricity.cooling_fans_pumps.energy_consumption",
+    "out.electricity.cooling.energy_consumption",
+    "out.electricity.freezer.energy_consumption",
+    "out.electricity.refrigerator.energy_consumption",
+    "out.electricity.heating_fans_pumps.energy_consumption",
+    "out.electricity.heating_hp_bkup.energy_consumption",
+    "out.electricity.heating.energy_consumption",
+    "out.fuel_oil.heating.energy_consumption",
+    "out.natural_gas.heating.energy_consumption",
+    "out.propane.heating.energy_consumption",
+    "out.electricity.hot_water.energy_consumption",
+    "in.income_recs_2020",
+    "in.pv_system_size",
+    "in.bedrooms",
+    "in.occupants",
+    "in.insulation_ceiling")]
+
+goal_data <- model_data
+goal_data$Temperature <- goal_data$Temperature + 5
+
+train_combined <- 
+  createDataPartition(y=model_data$TotalEnergy,
+                      p=.80, list = FALSE)
+trainSet_combined <- model_data[train_combined,]
+testSet_combined <- model_data[-train_combined,]
+
+combinedt <- rpart(TotalEnergy~. , data = trainSet_combined)
+goal_energy <- predict(combinedt, goal_data)
+combined_data$PredictedEnergy <- goal_energy
+july_pred <- combined_data %>% 
+  filter(format(date_time, "%m") == "07")
+
+county510Pred <- subset(july_pred, in.county == "G4500510")
+county190Pred <- subset(july_pred, in.county == "G4500190")
+
+library(tidyr)
+
+county190Pred$hour <- as.numeric(format(county190Pred$date_time, "%H"))
+# Convert 'hour' column to factor to maintain the order of hours
+county190Pred$hour <- factor(county190Pred$hour, levels = 0:23)
+
+# Reshape the county190_pred from wide to long format
+county190long <- county190Pred %>%
+  pivot_longer(cols = c(TotalEnergy, PredictedEnergy),
+               names_to = "energy_type",
+               values_to = "energy_value")
+
+# Plot the chart
+ggplot(county190long, aes(x = hour, y = energy_value, fill = energy_type)) +
+  geom_col(position = "dodge") +
+  labs(title = "Total vs Predicted Energy by Hour (with 5 degree increase)",
+       x = "Hour of the Day",
+       y = "Energy",
+       fill = "Energy Type") +
+  scale_fill_manual(values = c("lightgreen", "orange")) + 
+  theme_minimal()
+```
+
+
+```{r}
+# Goal Dataframes
+
+# Cooling Goal Data
+goal_cooling_house_data <- combined_cooling_house_data
+goal_cooling_house_data$`Dry Bulb Temperature [°C]` <- 
+  goal_cooling_house_data$`Dry Bulb Temperature [°C]` + 5
+head(goal_cooling_house_data)
+
+goal_cooling_house_data$Temperature <- goal_cooling_house_data$`Dry Bulb Temperature [°C]`
+goal_cooling_house_data$RelativeHumidity <- goal_cooling_house_data$`Relative Humidity [%]`
+goal_cooling_house_data$WindSpeed <- goal_cooling_house_data$`Wind Speed [m/s]`
+goal_cooling_house_data$WindDirection <- goal_cooling_house_data$`Wind Direction [Deg]`
+goal_cooling_house_data$GlobalHorizontalRadiation <- 
+  goal_cooling_house_data$`Global Horizontal Radiation [W/m2]`
+goal_cooling_house_data$DirectNormalRadiation <- 
+  goal_cooling_house_data$`Direct Normal Radiation [W/m2]`
+goal_cooling_house_data$DiffuseHorizontalRadiation <- 
+  goal_cooling_house_data$`Diffuse Horizontal Radiation [W/m2]`
+
+# Heating goal data
+goal_heating_house_data <- combined_heating_house_data
+goal_heating_house_data$`Dry Bulb Temperature [°C]` <- 
+  goal_heating_house_data$`Dry Bulb Temperature [°C]` + 5
+head(goal_heating_house_data)
+
+goal_heating_house_data$Temperature <- goal_heating_house_data$`Dry Bulb Temperature [°C]`
+goal_heating_house_data$RelativeHumidity <- goal_heating_house_data$`Relative Humidity [%]`
+goal_heating_house_data$WindSpeed <- goal_heating_house_data$`Wind Speed [m/s]`
+goal_heating_house_data$WindDirection <- goal_heating_house_data$`Wind Direction [Deg]`
+goal_heating_house_data$GlobalHorizontalRadiation <- 
+  goal_heating_house_data$`Global Horizontal Radiation [W/m2]`
+goal_heating_house_data$DirectNormalRadiation <- 
+  goal_heating_house_data$`Direct Normal Radiation [W/m2]`
+goal_heating_house_data$DiffuseHorizontalRadiation <- 
+  goal_heating_house_data$`Diffuse Horizontal Radiation [W/m2]`
+
+# Combined
+common_cols <- intersect(names(goal_cooling_house_data), names(goal_heating_house_data))
+combined_goal_data <- merge(goal_cooling_house_data, goal_heating_house_data, by = common_cols)
+
+combined_goal_data$TotalEnergy <- rowSums(combined_goal_data[, columns_to_sum], na.rm = TRUE)
+head(combined_goal_data)
+```
+
+
+```{r}
+# Goal Prediction using Cooling data
+
+goal_cooling_model_data <- goal_cooling_house_data[,c(
+    "total_energy_consumption",
+    "Temperature",
+    "RelativeHumidity",
+    "WindSpeed",
+    "WindDirection",
+    "GlobalHorizontalRadiation",
+    "DirectNormalRadiation",
+    "DiffuseHorizontalRadiation",
+    "out.electricity.cooling_fans_pumps.energy_consumption",
+    "out.electricity.cooling.energy_consumption",
+    "out.electricity.freezer.energy_consumption",
+    "out.electricity.refrigerator.energy_consumption",
+    "in.income_recs_2020",
+    "in.pv_system_size",
+    "in.bedrooms",
+    "in.occupants",
+    "in.insulation_ceiling"
+)]
+head(goal_cooling_model_data)
+predgoal <- predict(cooldt, goal_cooling_model_data)
+goal_cooling_house_data$PredictedEnergy <- predgoal
+#goal_cooling_model_data$PredictedEnergy <- predgoal
+unique(goal_cooling_house_data$in.county)
+
+# Percentage Change: New - Old / Old * 100
+july_prediction <- goal_cooling_house_data %>% 
+  filter(format(date_time, "%m") == "07")
+head(july_prediction)
+
+# County: G4500510
+county510_pred <- subset(july_prediction, in.county == "G4500510")
+county510_pred
+county510_pred$EnergyChange <- 
+  ((county510_pred$PredictedEnergy - county510_pred$total_energy_consumption)/
+  county510_pred$total_energy_consumption)*100
+
+# County: G4500190
+county190_pred <- subset(july_prediction, in.county == "G4500190")
+county190_pred
+county190_pred$EnergyChange <- 
+  ((county190_pred$PredictedEnergy - county190_pred$total_energy_consumption)/
+  county190_pred$total_energy_consumption)*100
+```
+
+
+```{r}
+# Goal Prediction using Heating data
+
+goal_heating_model_data <- goal_heating_house_data[,c(
+    "total_energy_consumption",
+    "Temperature",
+    "RelativeHumidity",
+    "WindSpeed",
+    "WindDirection",
+    "GlobalHorizontalRadiation",
+    "DirectNormalRadiation",
+    "DiffuseHorizontalRadiation",
+    "out.electricity.heating_fans_pumps.energy_consumption",
+    "out.electricity.heating_hp_bkup.energy_consumption",
+    "out.electricity.heating.energy_consumption",
+    "out.fuel_oil.heating.energy_consumption",
+    "out.natural_gas.heating.energy_consumption",
+    "out.propane.heating.energy_consumption",
+    "out.electricity.hot_water.energy_consumption",
+    "in.income_recs_2020",
+    "in.pv_system_size",
+    "in.bedrooms",
+    "in.occupants",
+    "in.insulation_ceiling"
+)]
+
+predgoalh <- predict(heatdt, goal_heating_model_data)
+goal_heating_house_data$PredictedEnergy <- predgoalh
+head(goal_heating_house_data)
+#goal_cooling_model_data$PredictedEnergy <- predgoal
+unique(goal_cooling_house_data$in.county)
+
+# Percentage Change: New - Old / Old * 100
+july_prediction_heat <- goal_heating_house_data %>% 
+  filter(format(date_time, "%m") == "07")
+head(july_prediction_heat)
+
+# County: G4500510
+county510_predh <- subset(july_prediction_heat, in.county == "G4500510")
+county510_predh
+county510_predh$EnergyChange <- 
+  ((county510_predh$PredictedEnergy - county510_predh$total_energy_consumption)/
+  county510_predh$total_energy_consumption)*100
+
+# County: G4500190
+county190_predh <- subset(july_prediction_heat, in.county == "G4500190")
+county190_predh
+county190_predh$EnergyChange <- 
+  ((county190_predh$PredictedEnergy - county190_predh$total_energy_consumption)/
+  county190_predh$total_energy_consumption)*100
+
+mean(county190_predh$total_energy_consumption)
+mean(county190_predh$PredictedEnergy)
+
+mean(county510_predh$total_energy_consumption)
+mean(county510_predh$PredictedEnergy)
+```
+
+
+```{r}
+# Average of Total Energy Consumption in the month of July without 5 deg increase
+mean(county510_pred$total_energy_consumption)
+mean(county190_pred$total_energy_consumption)
+
+# Average of Predicted Energy when there is an increase of 5 degree temperature
+mean(county510_pred$PredictedEnergy)
+mean(county190_pred$PredictedEnergy)
+
+# Calculating average including data of both counties
+befavg <- mean(july_prediction$total_energy_consumption)
+aftavg <- mean(july_prediction$PredictedEnergy)
+
+befavg
+aftavg
+
+energy_change<- (abs(aftavg - befavg)/befavg)*100
+energy_change
+
+```
+
+
+```{r}
+july_prediction %>% ggplot() + 
+  geom_col(aes(x= in.income_recs_2020, y = total_energy_consumption), fill = "turquoise") +
+  ggtitle("Total Energy Consumption for different Income levels") +
+  xlab("Income levels 2020") + ylab("Total Energy Consumption")
+```
+
+
+```{r}
+library(forcats)
+library(RColorBrewer)
+
+goal_cooling_house_data <- goal_cooling_house_data %>%
+  mutate(in.income_recs_2020 = factor(in.income_recs_2020, 
+                                      levels = c("<20000", "20000-39999", "40000-59999", "60000-99999", "100000-149999", "150000+"),
+                                      ordered = TRUE))
+
+july_prediction <- july_prediction %>%
+  mutate(in.income_recs_2020 = factor(in.income_recs_2020, 
+                                      levels = c("<20000", "20000-39999", "40000-59999", "60000-99999", "100000-149999", "150000+"),
+                                      ordered = TRUE))
+
+ggplot(july_prediction, aes(x = fct_inorder(in.income_recs_2020), 
+                            y = total_energy_consumption, 
+                            fill = fct_rev(fct_inorder(in.insulation_ceiling)))) +
+  geom_bar(stat = "identity", position = position_dodge(), width = 0.75) + 
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(
+    title = "Total Energy Consumption by Income and Insulation Level",
+    x = "Income Brackets 2020",
+    y = "Total Energy Consumption",
+    fill = "Ceiling Insulation Level"
+  ) +
+  theme_minimal(base_size = 14) + # Increase base_size for larger text
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    axis.title = element_text(size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12)
+  ) +
+  guides(fill = guide_legend(nrow = 1, byrow = TRUE)) # To adjust legend layout
+```
+
+
+```{r}
+library(forcats)
+
+# First, filter out rows where 'in.bed_rooms' is NA
+july_prediction_filtered <- july_prediction %>%
+  filter(!is.na(in.bedrooms))
+
+# Ensure that 'in.bed_rooms' is a factor with levels ordered as you wish to display them
+july_prediction_filtered$in.bed_rooms <- factor(july_prediction_filtered$in.bedrooms, levels = c("1", "2", "3", "4", "5+"))
+
+# Ensure that 'in.income_recs_2020' is an ordered factor as well
+july_prediction_filtered$in.income_recs_2020 <- factor(july_prediction_filtered$in.income_recs_2020, 
+                                                       levels = c("<20000", "20000-39999", "40000-59999", "60000-99999", "100000-149999", "150000+"),
+                                                       ordered = TRUE)
+
+# Plotting the graph
+ggplot(july_prediction_filtered, aes(x = in.income_recs_2020, 
+                                      y = total_energy_consumption, 
+                                      fill = in.bedrooms)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_brewer(palette = "Spectral") +
+  labs(
+    title = "Total Energy Consumption by Income and No. of Bedrooms",
+    x = "Income Brackets 2020",
+    y = "Total Energy Consumption",
+    fill = "Number of Bedrooms"
+  ) +
+  theme_minimal(base_size = 14) + 
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 12)
+  ) +
+  guides(fill = guide_legend(reverse = TRUE))
+
+ggsave("energy_consumption_by_income_and_bedrooms_filtered.png", width = 12, height = 8, dpi = 300)
+```
+
+
+```{r}
+july_prediction$in.occupants <- factor(july_prediction$in.occupants)
+
+# Ensure that 'in.income_recs_2020' is an ordered factor as well
+july_prediction$in.income_recs_2020 <- factor(july_prediction$in.income_recs_2020, 
+                                              levels = c("<20000", "20000-39999", "40000-59999", "60000-99999", "100000-149999", "150000+"),
+                                              ordered = TRUE)
+
+# Plotting the graph
+ggplot(july_prediction, aes(x = in.income_recs_2020, 
+                            y = total_energy_consumption, 
+                            fill = in.occupants)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(
+    title = "Total Energy Consumption by Income and No. of Occupants",
+    x = "Income Brackets 2020",
+    y = "Total Energy Consumption",
+    fill = "Number of Occupants"
+  ) +
+  theme_minimal(base_size = 14) + # Base size for readability
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 12)
+  ) +
+  guides(fill = guide_legend(reverse = TRUE))
+
+ggsave("energy_consumption_by_income_and_occupants.png", width = 12, height = 8, dpi = 300)
+```
+
+
+```{r}
+library(tidyr)
+
+county190_pred$hour <- as.numeric(format(county190_pred$date_time, "%H"))
+view(county190_pred)
+# Convert 'hour' column to factor to maintain the order of hours
+county190_pred$hour <- factor(county190_pred$hour, levels = 0:23)
+
+#view(county190_pred)
+
+# Reshape the county190_pred from wide to long format
+county190_long <- county190_pred %>%
+  pivot_longer(cols = c(total_energy_consumption, PredictedEnergy),
+               names_to = "energy_type",
+               values_to = "energy_value")
+
+# Plot the chart
+ggplot(county190_long, aes(x = hour, y = energy_value, fill = energy_type)) +
+  geom_col(position = "dodge") +
+  labs(title = "Total vs Predicted Energy by Hour (with 5 degree increase)",
+       x = "Hour of the Day",
+       y = "Energy",
+       fill = "Energy Type") +
+  scale_fill_manual(values = c("lightgreen", "orange")) + 
+  theme_minimal()
+```
+
+
+```{r}
+county510_pred$hour <- as.numeric(format(county510_pred$date_time, "%H"))
+# Convert 'hour' column to factor to maintain the order of hours
+county510_pred$hour <- factor(county510_pred$hour, levels = 0:23)
+
+# Reshape the county510_pred from wide to long format
+county510_long <- county510_pred %>%
+  pivot_longer(cols = c(total_energy_consumption, PredictedEnergy),
+               names_to = "energy_type",
+               values_to = "energy_value")
+
+# Plot the chart
+ggplot(county510_long, aes(x = hour, y = energy_value, fill = energy_type)) +
+  geom_col(position = "dodge") +
+  labs(title = "Total vs Predicted Energy by Hour (with 5 degree increase)",
+       x = "Hour of the Day",
+       y = "Energy",
+       fill = "Energy Type") +
+  scale_fill_manual(values = c("lightblue", "navy")) + 
+  theme_minimal()
+```
+
+
+
+
+
+
+
+
+
+
+
