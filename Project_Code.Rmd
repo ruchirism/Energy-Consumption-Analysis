@@ -1,7 +1,7 @@
 ---
 title: "IDS Project"
 output:
-  html_document: default
+  html_ument: default
   pdf_document: default
 date: "2024-03-11"
 --- 
@@ -1044,6 +1044,7 @@ ggplot(county510_long, aes(x = hour, y = energy_value, fill = energy_type)) +
   scale_fill_manual(values = c("lightblue", "navy")) + 
   theme_minimal()
 ```
+
 
 
 
